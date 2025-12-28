@@ -1,7 +1,12 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt.android.gradle)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -33,8 +38,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_11)
+        }
     }
     buildFeatures {
         compose = true
@@ -44,6 +51,7 @@ android {
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
@@ -57,4 +65,26 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    //smbj - 适用于 Java 的 SMB2/SMB3 客户端库
+    implementation(libs.smbj)
+
+    // Room
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+
+    // Hilt
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+
+    // Navigation
+    implementation(libs.androidx.navigation.compose)
+    implementation("androidx.hilt:hilt-navigation-compose:1.3.0")
+
+    //JSON serialization
+    implementation(libs.kotlinx.serialization.json)
+
+    //coil3
+    implementation("io.coil-kt.coil3:coil-compose:3.3.0")
 }
