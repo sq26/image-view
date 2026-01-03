@@ -3,9 +3,11 @@ package com.sq26.imageview.ui.screen
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -35,14 +37,15 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sq26.imageview.R
 import com.sq26.imageview.data.Directory
-import com.sq26.imageview.data.DirectoryDao
 import com.sq26.imageview.ui.theme.ImageViewTheme
 import com.sq26.imageview.utils.showToast
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DirectoryListScreen() {
+fun DirectoryListScreen(
+    toFileList: (name: String) -> Unit
+) {
     val vm = hiltViewModel<DirectoryListVM>()
     val list = vm.list.collectAsStateWithLifecycle(listOf())
     var showEditSMBServerDialog by remember { mutableStateOf(false) }
@@ -69,18 +72,38 @@ fun DirectoryListScreen() {
                 .padding(innerPadding)
         ) {
             items(list.value) {
-                Column(
-                    Modifier
+                Row(
+                    modifier = Modifier
                         .clickable {
-                            selectItem = it
-                            showEditSMBServerDialog = true
+                            toFileList(it.name)
                         }
-                        .fillMaxWidth()
-                        .padding(16.dp)
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(it.name)
-                    Text(it.path)
+                    Icon(
+                        painter = painterResource(R.drawable.smb_share_24px),
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Column(
+                        Modifier.weight(1f)
+                    ) {
+                        Text(it.name)
+                        Text(it.path)
+                    }
+                    Icon(
+                        painter = painterResource(R.drawable.edit_24px),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .clickable {
+                                selectItem = it
+                                showEditSMBServerDialog = true
+                            }
+                            .size(36.dp)
+                    )
                 }
+
                 HorizontalDivider()
             }
         }
@@ -100,9 +123,10 @@ fun EditSMBServerDialog(directory: Directory?, onDismissRequest: () -> Unit) {
     val context = LocalContext.current
     var name by remember { mutableStateOf(directory?.name.orEmpty()) }
     var ip by remember { mutableStateOf(directory?.path.orEmpty()) }
+    var port by remember { mutableStateOf(directory?.port?.toString() ?: "445") }
     var user by remember { mutableStateOf(directory?.user.orEmpty()) }
     var password by remember { mutableStateOf(directory?.password.orEmpty()) }
-    var shareName by remember { mutableStateOf(directory?.shareName.orEmpty()) }
+    var shareName by remember { mutableStateOf(directory?.shareName.orEmpty().ifEmpty { "share" }) }
     var sharePath by remember { mutableStateOf(directory?.sharePath.orEmpty()) }
     val bottomSheetState =
         rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -122,6 +146,11 @@ fun EditSMBServerDialog(directory: Directory?, onDismissRequest: () -> Unit) {
                 onValueChange = { ip = it },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("IP") })
+            OutlinedTextField(
+                value = port,
+                onValueChange = { port = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("端口") })
             OutlinedTextField(
                 value = user,
                 onValueChange = { user = it },
@@ -160,7 +189,7 @@ fun EditSMBServerDialog(directory: Directory?, onDismissRequest: () -> Unit) {
                     return@Button
                 }
                 scope.launch {
-                    vm.addSMBDirectory(name, ip, user, password,shareName,sharePath)
+                    vm.addSMBDirectory(name, ip, port, user, password, shareName, sharePath)
                     bottomSheetState.hide()
                 }.invokeOnCompletion {
                     onDismissRequest()
@@ -185,6 +214,5 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 @Composable
 fun GreetingPreview() {
     ImageViewTheme {
-        DirectoryListScreen()
     }
 }

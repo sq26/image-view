@@ -20,6 +20,7 @@ class DataModule {
         Room.databaseBuilder(context, AppDatabase::class.java, "data.db")
             // This is not recommended for normal apps, but the goal of this sample isn't to
             // showcase all of Room.
+            //此方法会指示 Room 在需要执行没有定义迁移路径的增量迁移时，破坏性地重新创建应用的数据库表。
             .fallbackToDestructiveMigration(false)
             .build()
 

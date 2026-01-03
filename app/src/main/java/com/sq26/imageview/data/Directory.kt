@@ -15,14 +15,15 @@ data class Directory(
     @PrimaryKey val name: String = "",
     val type: Int = TYPE_SMB,
     val path: String,
+    val port: Int = 445,
     val shareName: String = "share",
     val sharePath: String = "",
     val user: String = "",
     val password: String = ""
 ) {
     companion object {
-        const val TYPE_SMB = 1
-        const val TYPE_LOCAL = 2
+        const val TYPE_SMB = 1 //smb服务目录
+        const val TYPE_LOCAL = 2 //本地目录
     }
 }
 
@@ -36,6 +37,9 @@ interface DirectoryDao {
 
     @Query("SELECT * FROM directory")
     fun getAllFlow(): Flow<List<Directory>>
+
+    @Query("SELECT * FROM directory where name = :name")
+    fun getDirectory(name: String): Directory
 }
 
 
