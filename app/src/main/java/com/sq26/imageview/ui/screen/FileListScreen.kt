@@ -139,6 +139,8 @@ fun FileListScreen(
                                     vm.updateList()
                                 } else {
                                     if (it.isZip()) {
+
+                                    } else {
                                         toBrowse(directoryList.joinToString("/"), it.name)
                                     }
                                 }
