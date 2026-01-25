@@ -23,7 +23,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 
 @HiltViewModel
@@ -46,6 +45,7 @@ class FileListVM @Inject constructor(
             }
         }
     }
+
     var share: DiskShare? = null
     fun linkSMB(context: Context, onBack: () -> Unit) {
         if (directory == null) return
@@ -99,7 +99,9 @@ class FileListVM @Inject constructor(
                         "fileName: ${information.fileName} fileAttributes: ${information.fileAttributes}"
                     )
                 }
-                Log.i("TAG", "linkSMB: $list")
+//                Log.i("TAG", "linkSMB: $list")
+                //对list排序,先按isDirectory=true 放前面,再按name属性排序
+                list.sortWith(compareBy({ !it.isDirectory }, { it.name }))
                 fileList.value = list
             }
         }
@@ -108,9 +110,14 @@ class FileListVM @Inject constructor(
     suspend fun loadSmbImageLocalPath(context: Context, path: String): String {
         return withContext(Dispatchers.IO) {
             val file = share!!.openFile(
-                directoryList.joinToString("/") + "/" + path, setOf(AccessMask.GENERIC_READ), null, setOf(
+                directoryList.joinToString("/") + "/" + path,
+                setOf(AccessMask.GENERIC_READ),
+                null,
+                setOf(
                     SMB2ShareAccess.FILE_SHARE_READ
-                ), SMB2CreateDisposition.FILE_OPEN, null
+                ),
+                SMB2CreateDisposition.FILE_OPEN,
+                null
             )
 
             val localPath =
@@ -146,6 +153,15 @@ class FileListVM @Inject constructor(
     }
 }
 
-data class FileData(val name: String, val isDirectory: Boolean, val ext: String) {
+data class FileData(
+    val name: String,
+    val isDirectory: Boolean = false,
+    val ext: String,
+    val path: String = "",
+    val isAnimated: Boolean = false,
+    //子节点
+
+
+) {
     fun isZip() = ext == "zip"
 }

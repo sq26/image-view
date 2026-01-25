@@ -26,26 +26,31 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.ContentScale.Companion
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.sq26.imageview.R
+import com.sq26.imageview.utils.launchIO
+import com.sq26.imageview.utils.launchMain
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileListScreen(
     name: String,
     onBack: () -> Unit,
-    toBrowse: (path: String, fileName: String) -> Unit
+    toBrowse: (path: String, fileName: String) -> Unit,
+    toBrowseZip: (path: String) -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val vm = hiltViewModel<FileListVM>()
     LaunchedEffect(name) {
         vm.initData(name, context, onBack)
@@ -55,7 +60,7 @@ fun FileListScreen(
     val hasRootDirectory by remember { vm.hasRootDirectory }
     fun handleBack() {
         if (directoryList.size > if (hasRootDirectory) 0 else 1) {
-            directoryList.removeLast()
+            directoryList.removeLastOrNull()
             vm.updateList()
         } else {
             onBack()
@@ -139,7 +144,12 @@ fun FileListScreen(
                                     vm.updateList()
                                 } else {
                                     if (it.isZip()) {
-
+                                        scope.launchIO {
+                                            val path = vm.loadSmbImageLocalPath(context, it.name)
+                                            scope.launchMain {
+                                                toBrowseZip(path)
+                                            }
+                                        }
                                     } else {
                                         toBrowse(directoryList.joinToString("/"), it.name)
                                     }
@@ -196,7 +206,7 @@ fun SMBAsyncImage(smbPath: String, modifier: Modifier = Modifier) {
     }
     if (path.isNotEmpty())
         AsyncImage(
-            model = path,
+            model = File(path),
             contentDescription = null,
             modifier = modifier,
             contentScale = ContentScale.Crop

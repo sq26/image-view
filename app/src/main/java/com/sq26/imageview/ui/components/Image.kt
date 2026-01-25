@@ -14,6 +14,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -28,10 +29,15 @@ import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastForEach
+import androidx.compose.ui.viewinterop.AndroidView
 import coil3.compose.AsyncImage
+import com.davemorrissey.labs.subscaleview.ImageSource
+import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
+import java.io.RandomAccessFile
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -200,3 +206,44 @@ suspend fun PointerInputScope.detectTransformGesturesAndConsume(
     }
 }
 
+@Composable
+fun SubsamplingScaleImage(image: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val view = remember { SubsamplingScaleImageView(context).apply {
+        setDoubleTapZoomDuration(150)
+    } }
+    LaunchedEffect(image) {
+        view.setImage(ImageSource.uri(image))
+    }
+    AndroidView(factory = { view }, modifier = modifier)
+}
+
+//判断是否是动画webp
+fun isWebpAnimated(filePath: String): Boolean {
+    val file = RandomAccessFile(filePath, "r")
+    try {
+        if (file.length() < 30) return false
+
+        val header = ByteArray(30)
+        file.read(header)
+
+        // 检查是否为 WebP (RIFF....WEBP)
+        val isWebp = String(header.sliceArray(0..3)) == "RIFF" &&
+                String(header.sliceArray(8..11)) == "WEBP"
+
+        if (!isWebp) return false
+
+        // 检查是否为扩展格式 VP8X
+        val isVp8x = String(header.sliceArray(12..15)) == "VP8X"
+        if (isVp8x) {
+            // VP8X 的第 21 个字节（从0开始）的第 2 位（bit 1）表示是否有动画
+            val flags = header[20].toInt()
+            return (flags and 0x02) != 0
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    } finally {
+        file.close()
+    }
+    return false
+}

@@ -1,7 +1,7 @@
 package com.sq26.imageview.ui.screen
 
 import android.content.Context
-import android.util.Log
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -15,8 +15,6 @@ import com.sq26.imageview.AppConfig
 import com.sq26.imageview.data.Directory
 import com.sq26.imageview.data.DirectoryDao
 import com.sq26.imageview.utils.launchIO
-import com.sq26.imageview.utils.launchMain
-import com.sq26.imageview.utils.showToast
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -24,18 +22,17 @@ import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
-class BrowseVM @Inject constructor(
+class BrowseSMBVM @Inject constructor(
     private val directoryDao: DirectoryDao
 ) : ViewModel() {
 
-    val fileList = mutableStateOf<List<String>>(listOf())
-    val initIndex = mutableStateOf(0)
+    val fileList = mutableStateOf<List<FileData>>(listOf())
+    val initIndex = mutableIntStateOf(0)
     var directory: Directory? = null
     var share: DiskShare? = null
-    fun initData(name: String, path: String, fileName: String) {
+    fun initData(context: Context, name: String, path: String, fileName: String) {
         viewModelScope.launchIO {
             directory = directoryDao.getDirectory(name)
-
             val client = SMBClient()
             try {
                 val connection = client.connect(directory!!.path, directory!!.port)
@@ -46,30 +43,32 @@ class BrowseVM @Inject constructor(
                 )
                 val session = connection.authenticate(ac)
                 share = session.connectShare(directory!!.shareName) as DiskShare
-
-                share?.list(path)?.let { shareFileList ->
-                    val list = mutableListOf<String>()
-                    for (information in shareFileList) {
-                        val fileName = information.fileName
-                        // 过滤 "." 和 ".."
-                        if (fileName == "." || fileName == "..") continue
-                        // 获取扩展名
-                        val ext = fileName.substringAfterLast('.', "").lowercase()
-                        if (ext in AppConfig.extensions)
-                            list.add("$path/$fileName")
-                    }
-                    fileList.value = list
-                    initIndex.value = list.indexOf("$path/$fileName")
-                }
-
+                initSMBData(path, fileName)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
     }
 
+    fun initSMBData(path: String, fileName: String) {
+        share?.list(path)?.let { shareFileList ->
+            val list = mutableListOf<FileData>()
+            for (information in shareFileList) {
+                val fileName = information.fileName
+                // 过滤 "." 和 ".."
+                if (fileName == "." || fileName == "..") continue
+                // 获取扩展名
+                val ext = fileName.substringAfterLast('.', "").lowercase()
+                if (ext in AppConfig.extensions)
+                    list.add(FileData(name = fileName, ext = ext, path = "$path/$fileName"))
+            }
+            list.sortWith(compareBy { it.name })
+            fileList.value = list
+            initIndex.intValue = list.indexOfFirst { it.path == "$path/$fileName" }
+        }
+    }
 
-    suspend fun loadSmbImageLocalPath(context: Context, path: String): String {
+    suspend fun loadSmbFileLocalPath(context: Context, path: String): String {
         return withContext(Dispatchers.IO) {
             val file = share!!.openFile(
                 path, setOf(AccessMask.GENERIC_READ), null, setOf(

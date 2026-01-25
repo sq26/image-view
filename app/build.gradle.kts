@@ -28,6 +28,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -66,6 +68,9 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
+    //Subsampling Scale Image View - 为安卓设计的自定义图片视图
+    implementation(libs.subsampling.scale.image.view.androidx)
+
     //smbj - 适用于 Java 的 SMB2/SMB3 客户端库
     implementation(libs.smbj)
 
@@ -87,4 +92,5 @@ dependencies {
 
     //coil3
     implementation(libs.coil.compose)
+    implementation(libs.coil.gif)
 }
