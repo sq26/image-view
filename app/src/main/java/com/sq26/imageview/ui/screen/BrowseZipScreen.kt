@@ -10,55 +10,62 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil3.request.ImageRequest
 import coil3.size.Size
-import com.sq26.imageview.ui.components.SubsamplingScaleImage
 import com.sq26.imageview.ui.components.ZoomableImage
-import com.sq26.imageview.ui.components.isWebpAnimated
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.io.File
+import com.sq26.imageview.coil.ZipEntryModel
+import com.sq26.imageview.ui.nav.ZipSource
 
 @Composable
-fun BrowseZipScreen(path: String, fileName: String, onBack: () -> Unit) {
+fun BrowseZipScreen(source: ZipSource, fileName: String, onBack: () -> Unit) {
     val vm = hiltViewModel<BrowseZipVM>()
-    LaunchedEffect(Unit) {
-        vm.initData(path, fileName)
+    val state = vm.state
+
+    LaunchedEffect(source, fileName) {
+        vm.onIntent(BrowseZipIntent.Init(source, fileName))
     }
-    val fileList by remember { vm.fileList }
-    val initIndex by remember { vm.initIndex }
-    val pagerState = rememberPagerState { fileList.size }
-    LaunchedEffect(initIndex) {
-        pagerState.requestScrollToPage(initIndex)
-    }
-    Box {
-        HorizontalPager(
-            modifier = Modifier.fillMaxSize(),
-            state = pagerState,
-        ) {
-            var path by remember { mutableStateOf("") }
-            var isAnimated by remember { mutableStateOf(false) }
-            val file = fileList[it]
-            LaunchedEffect(file) {
-                val mPath = vm.loadZipImageLocalPath(file.path)
-                if (file.ext == "webp")
-                    isAnimated = withContext(Dispatchers.IO) { isWebpAnimated(mPath) }
-                path = mPath
-            }
-            if (path.isNotEmpty()) {
-                if (isAnimated) {
-                    ZoomableImage(
-                        ImageRequest.Builder(LocalContext.current).data(File(path))
-                            .size(Size.ORIGINAL) // 强制加载原图
-                            .build()
-                    )
-                } else {
-                    SubsamplingScaleImage(path, modifier = Modifier.fillMaxSize())
-                }
-            }
+
+    val pagerState = rememberPagerState(initialPage = state.initIndex) { state.fileList.size }
+
+    LaunchedEffect(state.initIndex) {
+        if (state.fileList.isNotEmpty()) {
+            pagerState.scrollToPage(state.initIndex)
         }
     }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (state.fileList.isNotEmpty()) {
+            HorizontalPager(
+                modifier = Modifier.fillMaxSize(),
+                state = pagerState,
+            ) { pageIndex ->
+                ZipImageItem(
+                    source = source,
+                    file = state.fileList[pageIndex]
+                )
+            }
+        }
+        if (state.isLoading) {
+            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+        }
+    }
+}
+
+@Composable
+private fun ZipImageItem(
+    source: ZipSource,
+    file: FileData
+) {
+    ZoomableImage(
+        ImageRequest.Builder(LocalContext.current)
+            .data(ZipEntryModel(source, file.path))
+            .size(Size.ORIGINAL)
+            .build()
+    )
 }

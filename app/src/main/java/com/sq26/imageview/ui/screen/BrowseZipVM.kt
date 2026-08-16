@@ -1,89 +1,139 @@
 package com.sq26.imageview.ui.screen
 
 import android.util.Log
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.hierynomus.msdtyp.AccessMask
+import com.hierynomus.mssmb2.SMB2CreateDisposition
+import com.hierynomus.mssmb2.SMB2ShareAccess
+import com.hierynomus.smbj.SMBClient
+import com.hierynomus.smbj.auth.AuthenticationContext
+import com.hierynomus.smbj.share.DiskShare
+import com.sq26.imageview.data.DirectoryDao
+import com.sq26.imageview.ui.nav.ZipSource
 import com.sq26.imageview.utils.launchIO
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
+import java.io.InputStream
 import java.nio.charset.Charset
+import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
 import javax.inject.Inject
 
+data class BrowseZipState(
+    val fileList: List<FileData> = emptyList(),
+    val initIndex: Int = 0,
+    val isLoading: Boolean = false
+)
+
+sealed class BrowseZipIntent {
+    data class Init(val source: ZipSource, val fileName: String) : BrowseZipIntent()
+}
+
 @HiltViewModel
-class BrowseZipVM @Inject constructor() : ViewModel() {
+class BrowseZipVM @Inject constructor(
+    private val directoryDao: DirectoryDao
+) : ViewModel() {
 
-    val fileList = mutableStateOf<List<FileData>>(listOf())
-    val initIndex = mutableIntStateOf(0)
-    var zipFile: ZipFile? = null
-    var rootPath = ""
-    fun initData(path: String, filePath: String) {
-        viewModelScope.launchIO {
-            if (zipFile == null) {
-                rootPath = path
-                zipFile = ZipFile(rootPath, Charset.forName("GBK"))
-                val fileName = filePath.substringAfterLast('/')
-                val directoryPath = filePath.removeSuffix(fileName)
-                val list = mutableListOf<FileData>()
-                val entries = zipFile?.entries()
+    var state by mutableStateOf(BrowseZipState())
+        private set
 
-                if (entries != null)
-                    while (entries.hasMoreElements()) {
-                        val entry = entries.nextElement()
-                        val fullPath = entry.name
-                        if (directoryPath == fullPath) continue
-                        if (!fullPath.startsWith(directoryPath)) continue
-                        val isDirectory = fullPath.endsWith("/")
-                        if (isDirectory) continue
-                        val relative = fullPath.removePrefix(directoryPath)
-                        val slashCount = relative.count { it == '/' }
-                        val isDirectChild = slashCount == 0
-                        if (!isDirectChild) continue
-                        val name = relative.substringAfterLast('/')
-                        val ext = name.substringAfterLast('.', "").lowercase()
-                        list.add(FileData(name = name, ext = ext, path = fullPath))
-                    }
+    private var zipSource: ZipSource? = null
+    private var share: DiskShare? = null
 
-                list.sortWith(compareBy { it.name })
-                fileList.value = list
-                Log.i("TAG", "initData: $list")
-                if (list.isNotEmpty())
-                    initIndex.intValue = list.indexOfFirst { it.path == filePath }
-            }
+    fun onIntent(intent: BrowseZipIntent) {
+        when (intent) {
+            is BrowseZipIntent.Init -> initData(intent.source, intent.fileName)
         }
     }
 
-    suspend fun loadZipImageLocalPath(path: String): String {
-        return withContext(Dispatchers.IO) {
-            Log.i("TAG", "path: $path")
-            val localFile = File(rootPath + "_", path)
-            Log.i("TAG", "rootPath: $rootPath")
-            Log.i("TAG", "loadZipImageLocalPath: ${localFile.canonicalPath}")
-            localFile.parentFile?.mkdirs()
-            if (localFile.exists()) {
-                return@withContext localFile.canonicalPath
-            } else {
-                localFile.createNewFile()
-            }
-
-            zipFile?.getEntry(path)?.let { entry ->
-                zipFile!!.getInputStream(entry).use { inputStream ->
-                    localFile.outputStream().use { outputStream ->
-                        val buffer = ByteArray(4096)
-                        while (true) {
-                            val read = inputStream.read(buffer)
-                            if (read <= 0) break
-                            outputStream.write(buffer, 0, read)
+    private fun initData(source: ZipSource, fileName: String) {
+        if (zipSource == source) return
+        zipSource = source
+        viewModelScope.launchIO {
+            state = state.copy(isLoading = true)
+            val allFilePathList = mutableListOf<String>()
+            try {
+                when (source) {
+                    is ZipSource.Local -> {
+                        ZipFile(source.path, Charset.forName("GBK")).use { zip ->
+                            val entries = zip.entries()
+                            while (entries.hasMoreElements()) {
+                                allFilePathList.add(entries.nextElement().name)
+                            }
+                        }
+                    }
+                    is ZipSource.Smb -> {
+                        getSmbInputStream(source).use { isStream ->
+                            ZipInputStream(isStream, Charset.forName("GBK")).use { zis ->
+                                var entry: ZipEntry?
+                                while (zis.nextEntry.also { entry = it } != null) {
+                                    allFilePathList.add(entry!!.name)
+                                }
+                            }
                         }
                     }
                 }
+
+                val fileNameOnly = fileName.substringAfterLast('/')
+                val directoryPath = fileName.removeSuffix(fileNameOnly)
+                val list = mutableListOf<FileData>()
+
+                allFilePathList.forEach { fullPath ->
+                    if (directoryPath == fullPath) return@forEach
+                    if (!fullPath.startsWith(directoryPath)) return@forEach
+                    val isDirectory = fullPath.endsWith("/")
+                    if (isDirectory) return@forEach
+                    val relative = fullPath.removePrefix(directoryPath)
+                    if (relative.count { it == '/' } != 0) return@forEach
+                    val name = relative.substringAfterLast('/')
+                    list.add(FileData(name = name, ext = name.substringAfterLast('.', "").lowercase(), path = fullPath))
+                }
+
+                list.sortWith(compareBy { it.name })
+                state = state.copy(
+                    fileList = list,
+                    initIndex = list.indexOfFirst { it.path == fileName }
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                state = state.copy(isLoading = false)
             }
-            localFile.canonicalPath
         }
     }
 
+    suspend fun loadZipImageData(path: String): ByteArray? = null
+
+    private suspend fun getSmbInputStream(source: ZipSource.Smb): InputStream = withContext(Dispatchers.IO) {
+        if (share == null) {
+            val directory = directoryDao.getDirectory(source.serverName)
+            val client = SMBClient()
+            val connection = client.connect(directory.path, directory.port)
+            val session = connection.authenticate(AuthenticationContext(directory.user, directory.password.toCharArray(), null))
+            share = session.connectShare(directory.shareName) as DiskShare
+        }
+        share!!.openFile(source.zipPath, setOf(AccessMask.GENERIC_READ), null, setOf(SMB2ShareAccess.FILE_SHARE_READ), SMB2CreateDisposition.FILE_OPEN, null).inputStream
+    }
+
+    override fun onCleared() {
+        val shareToClose = share
+        if (shareToClose != null) {
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    shareToClose.close()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
 }

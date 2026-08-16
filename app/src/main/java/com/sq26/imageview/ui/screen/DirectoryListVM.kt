@@ -16,26 +16,11 @@ class DirectoryListVM @Inject constructor(
     val list = directoryDao.getAllFlow()
 
     fun addSMBDirectory(
-        name: String,
-        ip: String,
-        port: String,
-        user: String,
-        password: String,
-        shareName: String,
-        sharePath: String
+        directory: Directory
     ) {
         viewModelScope.launchIO {
             directoryDao.insertAll(
-                Directory(
-                    name = name,
-                    type = Directory.TYPE_SMB,
-                    path = ip,
-                    port = port.toIntOrNull() ?: 445,
-                    shareName = shareName,
-                    sharePath = sharePath,
-                    user = user,
-                    password = password
-                )
+                directory
             )
         }
     }

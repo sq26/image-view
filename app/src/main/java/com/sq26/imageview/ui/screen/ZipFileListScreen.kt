@@ -3,6 +3,7 @@ package com.sq26.imageview.ui.screen
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -35,150 +38,142 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.sq26.imageview.R
-import java.io.File
+import com.sq26.imageview.coil.ZipEntryModel
+import com.sq26.imageview.ui.nav.ZipSource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ZipFileListScreen(
-    path: String,
+    source: ZipSource,
     onBack: () -> Unit,
     toBrowseZip: (fileName: String) -> Unit
 ) {
     val vm = hiltViewModel<ZipFileListVM>()
-    LaunchedEffect(path) {
-        vm.initData(path)
+    val state = vm.state
+
+    LaunchedEffect(source) {
+        vm.onIntent(ZipFileListIntent.Init(source))
     }
-    val fileList by remember { vm.fileList }
-    val directoryList = remember { vm.directoryList }
-    fun handleBack() {
-        if (directoryList.isNotEmpty()) {
-            directoryList.removeLastOrNull()
-            vm.updateList()
+
+    BackHandler {
+        if (state.directoryList.isNotEmpty()) {
+            vm.onIntent(ZipFileListIntent.ToggleDirectory("", false))
         } else {
             onBack()
         }
     }
-    BackHandler {
-        handleBack()
-    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(title = {}, navigationIcon = {
-                IconButton(onClick = {
-                    handleBack()
-                }) {
-                    Icon(
-                        painter = painterResource(R.drawable.baseline_arrow_back_24),
-                        contentDescription = null
-                    )
+            TopAppBar(
+                title = { Text("压缩包内容") },
+                navigationIcon = {
+                    IconButton(onClick = {
+                        if (state.directoryList.isNotEmpty()) {
+                            vm.onIntent(ZipFileListIntent.ToggleDirectory("", false))
+                        } else {
+                            onBack()
+                        }
+                    }) {
+                        Icon(painterResource(R.drawable.baseline_arrow_back_24), null)
+                    }
                 }
-            })
+            )
         }
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .padding(innerPadding)
-        ) {
-            LazyRow(
-                contentPadding = PaddingValues(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                item {
-                    Row(
-                        modifier = Modifier.clickable {
-                            directoryList.clear()
-                            vm.updateList()
-                        },
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.baseline_play_arrow_24),
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Text("根目录")
-                    }
-                }
-                items(directoryList) {
-                    Row(
-                        modifier = Modifier.clickable {
-                            directoryList.removeRange(
-                                fromIndex = directoryList.indexOf(it) + 1,
-                                directoryList.size
-                            )
-                            vm.updateList()
-                        },
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.baseline_play_arrow_24),
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Text(it)
-                    }
-                }
-            }
-            LazyColumn {
-                items(fileList) {
-                    Row(
-                        Modifier
-                            .clickable {
-                                if (it.isDirectory) {
-                                    directoryList.add(it.name)
-                                    vm.updateList()
-                                } else {
-                                    toBrowseZip(directoryList.joinToString("") + it.name)
-                                }
-                            }
-                            .fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        if (it.isDirectory) {
-                            Icon(
-                                painter = painterResource(R.drawable.folder_24px),
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .padding(16.dp)
-                                    .size(36.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+        Box(modifier = Modifier.padding(innerPadding)) {
+            Column {
+                Breadcrumbs(
+                    directoryList = state.directoryList,
+                    onCrumbClick = { index -> vm.onIntent(ZipFileListIntent.BackToDirectory(index)) },
+                    onRootClick = { vm.onIntent(ZipFileListIntent.BackToDirectory(-1)) }
+                )
+                ZipFileList(
+                    fileList = state.fileList,
+                    onItemClick = { file ->
+                        if (file.isDirectory) {
+                            vm.onIntent(ZipFileListIntent.ToggleDirectory(file.name, true))
                         } else {
-                            ZipAsyncImage(
-                                it.name,
-                                modifier = Modifier.size(78.dp)
-                            )
+                            toBrowseZip(file.name)
                         }
-
-                        Text(
-                            it.name,
-                            modifier = Modifier.padding(top = 8.dp, bottom = 8.dp, end = 16.dp)
-                        )
-                    }
-                    HorizontalDivider()
-                }
+                    },
+                    source = source,
+                    directoryPath = state.directoryList.joinToString("")
+                )
+            }
+            if (state.isLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
         }
     }
 }
 
 @Composable
-fun ZipAsyncImage(path: String, modifier: Modifier = Modifier) {
-    val vm = hiltViewModel<ZipFileListVM>()
-    var localPath by remember { mutableStateOf("") }
-    LaunchedEffect(path) {
-        localPath = vm.loadZipImageLocalPath(path)
+private fun Breadcrumbs(
+    directoryList: List<String>,
+    onCrumbClick: (Int) -> Unit,
+    onRootClick: () -> Unit
+) {
+    LazyRow(
+        contentPadding = PaddingValues(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        item {
+            Row(
+                modifier = Modifier.clickable { onRootClick() },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(painterResource(R.drawable.baseline_play_arrow_24), null, Modifier.size(16.dp), MaterialTheme.colorScheme.primary)
+                Text("根目录")
+            }
+        }
+        itemsIndexed(directoryList) { index, crumb ->
+            Row(
+                modifier = Modifier.clickable { onCrumbClick(index) },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(painterResource(R.drawable.baseline_play_arrow_24), null, Modifier.size(16.dp), MaterialTheme.colorScheme.primary)
+                Text(crumb.trim('/'))
+            }
+        }
     }
-    if (localPath.isNotEmpty())
-        AsyncImage(
-            model = File(localPath),
-            contentDescription = null,
-            modifier = modifier,
-            contentScale = ContentScale.Crop
-        )
+}
+
+@Composable
+private fun ZipFileList(
+    fileList: List<FileData>,
+    onItemClick: (FileData) -> Unit,
+    source: ZipSource,
+    directoryPath: String
+) {
+    LazyColumn {
+        items(fileList) { file ->
+            Row(
+                Modifier
+                    .clickable { onItemClick(file) }
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (file.isDirectory) {
+                    Icon(painterResource(R.drawable.folder_24px), null, Modifier.padding(16.dp).size(36.dp), MaterialTheme.colorScheme.primary)
+                } else {
+                    ZipAsyncImage(ZipEntryModel(source, directoryPath + file.name), Modifier.size(78.dp))
+                }
+                Text(file.name, Modifier.padding(vertical = 8.dp).padding(end = 16.dp))
+            }
+            HorizontalDivider()
+        }
+    }
+}
+
+@Composable
+fun ZipAsyncImage(model: ZipEntryModel, modifier: Modifier = Modifier) {
+    AsyncImage(
+        model = model,
+        contentDescription = null,
+        modifier = modifier,
+        contentScale = ContentScale.Crop
+    )
 }

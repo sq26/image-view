@@ -1,106 +1,105 @@
 package com.sq26.imageview.ui.nav
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
-import androidx.navigation.toRoute
+import androidx.compose.runtime.remember
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.ui.NavDisplay
 import com.sq26.imageview.ui.screen.BrowseSMBScreen
 import com.sq26.imageview.ui.screen.BrowseZipScreen
 import com.sq26.imageview.ui.screen.DirectoryListScreen
 import com.sq26.imageview.ui.screen.FileListScreen
 import com.sq26.imageview.ui.screen.ZipFileListScreen
-import com.sq26.imageview.utils.launchMain
 import kotlinx.serialization.Serializable
 
 @Serializable
-data object DirectoryList
+data object DirectoryList : NavKey
 
 @Serializable
-data class FileList(val name: String)
+data class FileList(val name: String) : NavKey
 
 @Serializable
-data class Browse(val name: String, val path: String, val fileName: String)
+sealed class ZipSource {
+    @Serializable
+    data class Local(val path: String) : ZipSource()
+
+    @Serializable
+    data class Smb(val serverName: String, val zipPath: String) : ZipSource()
+}
 
 @Serializable
-data class ZipFileList(val path: String)
+data class Browse(val name: String, val path: String, val fileName: String) : NavKey
 
 @Serializable
-data class BrowseZip(val path: String, val fileName: String)
+data class ZipFileList(val source: ZipSource) : NavKey
 
+@Serializable
+data class BrowseZip(val source: ZipSource, val fileName: String) : NavKey
 
 @Composable
 fun MainNavHost() {
-    val navController = rememberNavController()
+    val navigationState = rememberNavigationState(
+        startRoute = DirectoryList,
+        topLevelRoutes = setOf(DirectoryList)
+    )
+    val navigator = remember { Navigator(navigationState) }
 
-    NavHost(navController = navController, startDestination = DirectoryList) {
-        composable<DirectoryList> {
+    val entryProvider = entryProvider {
+        entry<DirectoryList> {
             DirectoryListScreen(toFileList = { name ->
-                navController.navigate(FileList(name))
+                navigator.navigate(FileList(name))
             })
         }
 
-        composable<FileList> {
-            val scope = rememberCoroutineScope()
-            val params: FileList = it.toRoute()
+        entry<FileList> { key ->
             FileListScreen(
-                name = params.name,
+                name = key.name,
                 onBack = {
-                    scope.launchMain {
-                        navController.popBackStack()
-                    }
+                    navigator.goBack()
                 },
                 toBrowse = { path, fileName ->
-                    navController.navigate(Browse(params.name, path, fileName))
+                    navigator.navigate(Browse(key.name, path, fileName))
                 },
                 toBrowseZip = { path ->
-                    navController.navigate(ZipFileList(path))
+                    navigator.navigate(ZipFileList(ZipSource.Smb(key.name, path)))
                 }
             )
         }
 
-        composable<Browse> {
-            val scope = rememberCoroutineScope()
-            val params: Browse = it.toRoute()
+        entry<Browse> { key ->
             BrowseSMBScreen(
-                name = params.name,
-                path = params.path,
-                fileName = params.fileName,
+                name = key.name,
+                path = key.path,
+                fileName = key.fileName,
                 onBack = {
-                    scope.launchMain {
-                        navController.popBackStack()
-                    }
+                    navigator.goBack()
                 })
         }
 
-        composable<ZipFileList> {
-            val scope = rememberCoroutineScope()
-            val params: ZipFileList = it.toRoute()
+        entry<ZipFileList> { key ->
             ZipFileListScreen(
-                path = params.path,
+                source = key.source,
                 onBack = {
-                    scope.launchMain {
-                        navController.popBackStack()
-                    }
+                    navigator.goBack()
                 },
                 toBrowseZip = { fileName ->
-                    navController.navigate(BrowseZip(params.path, fileName))
+                    navigator.navigate(BrowseZip(key.source, fileName))
                 }
             )
         }
 
-        composable<BrowseZip> {
-            val scope = rememberCoroutineScope()
-            val params: BrowseZip = it.toRoute()
+        entry<BrowseZip> { key ->
             BrowseZipScreen(
-                path = params.path,
-                fileName = params.fileName,
+                source = key.source,
+                fileName = key.fileName,
                 onBack = {
-                    scope.launchMain {
-                        navController.popBackStack()
-                    }
+                    navigator.goBack()
                 })
         }
     }
+
+    NavDisplay(
+        entries = navigationState.toEntries(entryProvider),
+        onBack = { navigator.goBack() }
+    )
 }

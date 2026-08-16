@@ -14,10 +14,22 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.ImageView">
         <activity
+            android:name=".ui.PrismActivity"
+            android:exported="true"
+            android:label="@string/title_activity_prism"
+            android:theme="@style/Theme.ImageView">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+        <activity
             android:name=".ui.MainActivity"
             android:exported="true"
             android:label="@string/app_name"
-            android:theme="@style/Theme.ImageView">
+            android:theme="@style/Theme.ImageView"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

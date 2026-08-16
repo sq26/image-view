@@ -41,13 +41,38 @@ import com.sq26.imageview.ui.theme.ImageViewTheme
 import com.sq26.imageview.utils.showToast
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Preview(showBackground = true)
+@Composable
+fun DirectoryListScreenPreview() {
+    ImageViewTheme {
+        DirectoryListScreenContent(
+            toFileList = {},addSMBDirectory = {}, list = listOf()
+        )
+    }
+}
+
 @Composable
 fun DirectoryListScreen(
     toFileList: (name: String) -> Unit
 ) {
     val vm = hiltViewModel<DirectoryListVM>()
-    val list = vm.list.collectAsStateWithLifecycle(listOf())
+    val list by vm.list.collectAsStateWithLifecycle(listOf())
+    DirectoryListScreenContent(
+        toFileList = toFileList,
+        addSMBDirectory = {
+            vm.addSMBDirectory(it)
+        },
+        list = list
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DirectoryListScreenContent(
+    toFileList: (name: String) -> Unit,
+    addSMBDirectory: (Directory) -> Unit,
+    list: List<Directory>
+) {
     var showEditSMBServerDialog by remember { mutableStateOf(false) }
     var selectItem by remember { mutableStateOf<Directory?>(null) }
     Scaffold(
@@ -71,7 +96,7 @@ fun DirectoryListScreen(
             modifier = Modifier
                 .padding(innerPadding)
         ) {
-            items(list.value) {
+            items(list) {
                 Row(
                     modifier = Modifier
                         .clickable {
@@ -110,15 +135,26 @@ fun DirectoryListScreen(
     }
 
     if (showEditSMBServerDialog)
-        EditSMBServerDialog(selectItem) {
+        EditSMBServerDialog(selectItem, addSMBDirectory = addSMBDirectory) {
             showEditSMBServerDialog = false
         }
 }
 
+@Preview(showBackground = true)
+@Composable
+fun EditSMBServerDialogPreview() {
+    ImageViewTheme {
+        EditSMBServerDialog(null, addSMBDirectory = {}, onDismissRequest = {})
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditSMBServerDialog(directory: Directory?, onDismissRequest: () -> Unit) {
-    val vm = hiltViewModel<DirectoryListVM>()
+fun EditSMBServerDialog(
+    directory: Directory?,
+    addSMBDirectory: (Directory) -> Unit,
+    onDismissRequest: () -> Unit
+) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var name by remember { mutableStateOf(directory?.name.orEmpty()) }
@@ -189,7 +225,16 @@ fun EditSMBServerDialog(directory: Directory?, onDismissRequest: () -> Unit) {
                     return@Button
                 }
                 scope.launch {
-                    vm.addSMBDirectory(name, ip, port, user, password, shareName, sharePath)
+                    addSMBDirectory(Directory(
+                        name = name,
+                        path = ip,
+                        port = port.toIntOrNull() ?: 445,
+                        shareName = shareName,
+                        sharePath = sharePath,
+                        user = user,
+                        password = password
+
+                    ))
                     bottomSheetState.hide()
                 }.invokeOnCompletion {
                     onDismissRequest()
@@ -202,17 +247,3 @@ fun EditSMBServerDialog(directory: Directory?, onDismissRequest: () -> Unit) {
     }
 }
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    ImageViewTheme {
-    }
-}

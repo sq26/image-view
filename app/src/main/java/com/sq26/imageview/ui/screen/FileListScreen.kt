@@ -26,7 +26,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,8 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.sq26.imageview.R
-import com.sq26.imageview.utils.launchIO
-import com.sq26.imageview.utils.launchMain
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,7 +47,6 @@ fun FileListScreen(
     toBrowseZip: (path: String) -> Unit
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val vm = hiltViewModel<FileListVM>()
     LaunchedEffect(name) {
         vm.initData(name, context, onBack)
@@ -144,12 +140,8 @@ fun FileListScreen(
                                     vm.updateList()
                                 } else {
                                     if (it.isZip()) {
-                                        scope.launchIO {
-                                            val path = vm.loadSmbImageLocalPath(context, it.name)
-                                            scope.launchMain {
-                                                toBrowseZip(path)
-                                            }
-                                        }
+                                        val fullPath = if (directoryList.isEmpty()) it.name else "${directoryList.joinToString("/")}/${it.name}"
+                                        toBrowseZip(fullPath)
                                     } else {
                                         toBrowse(directoryList.joinToString("/"), it.name)
                                     }

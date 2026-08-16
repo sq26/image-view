@@ -20,7 +20,9 @@ import com.sq26.imageview.utils.launchIO
 import com.sq26.imageview.utils.launchMain
 import com.sq26.imageview.utils.showToast
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
@@ -147,8 +149,15 @@ class FileListVM @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        viewModelScope.launchDefault {
-            share?.close()
+        val shareToClose = share
+        if (shareToClose != null) {
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    shareToClose.close()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
         }
     }
 }

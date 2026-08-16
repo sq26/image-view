@@ -6,6 +6,7 @@ import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.gif.AnimatedImageDecoder
 import coil3.request.crossfade
+import com.sq26.imageview.coil.ZipEntryFetcher
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
@@ -15,8 +16,8 @@ class ImageViewApplication : Application(), SingletonImageLoader.Factory{
             .crossfade(true)
             .components {
                 add(AnimatedImageDecoder.Factory())
+                add(ZipEntryFetcher.Factory())
             }
             .build()
     }
-
 }
