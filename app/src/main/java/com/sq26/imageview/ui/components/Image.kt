@@ -40,7 +40,7 @@ import java.io.RandomAccessFile
 import kotlin.math.abs
 
 @Composable
-fun ZoomableImage(model: Any) {
+fun ZoomableImage(model: Any, onClick: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val scale = remember { Animatable(1f) }
     val offset = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
@@ -52,6 +52,7 @@ fun ZoomableImage(model: Any) {
             .onSizeChanged { boxSize = it }
             .pointerInput(Unit) {
                 detectTapGestures(
+                    onTap = { onClick() },
                     onDoubleTap = { tapOffset ->
                         scope.launch {
                             if (scale.value > 1f) {

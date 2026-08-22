@@ -1,8 +1,6 @@
 package com.sq26.imageview.ui.screen
 
-import android.util.Log
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -110,8 +108,6 @@ class BrowseZipVM @Inject constructor(
             }
         }
     }
-
-    suspend fun loadZipImageData(path: String): ByteArray? = null
 
     private suspend fun getSmbInputStream(source: ZipSource.Smb): InputStream = withContext(Dispatchers.IO) {
         if (share == null) {
