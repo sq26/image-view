@@ -5,6 +5,7 @@ import androidx.compose.runtime.remember
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
+import com.sq26.imageview.data.ZipSource
 import com.sq26.imageview.ui.screen.BrowseSMBScreen
 import com.sq26.imageview.ui.screen.BrowseZipScreen
 import com.sq26.imageview.ui.screen.DirectoryListScreen
@@ -22,15 +23,6 @@ data object DirectoryList : NavKey
 
 @Serializable
 data class FileList(val name: String) : NavKey
-
-@Serializable
-sealed class ZipSource {
-    @Serializable
-    data class Local(val path: String) : ZipSource()
-
-    @Serializable
-    data class Smb(val serverName: String, val zipPath: String) : ZipSource()
-}
 
 @Serializable
 data class Browse(val name: String, val path: String, val fileName: String) : NavKey

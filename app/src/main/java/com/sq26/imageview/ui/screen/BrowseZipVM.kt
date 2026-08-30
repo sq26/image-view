@@ -5,21 +5,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.hierynomus.msdtyp.AccessMask
-import com.hierynomus.mssmb2.SMB2CreateDisposition
-import com.hierynomus.mssmb2.SMB2ShareAccess
-import com.hierynomus.smbj.SMBClient
-import com.hierynomus.smbj.auth.AuthenticationContext
-import com.hierynomus.smbj.share.DiskShare
-import com.sq26.imageview.data.DirectoryDao
-import com.sq26.imageview.ui.nav.ZipSource
+import com.sq26.imageview.coil.ZipCacheManager
+import com.sq26.imageview.data.ZipSource
 import com.sq26.imageview.utils.launchIO
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.InputStream
 import java.nio.charset.Charset
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
@@ -38,14 +28,13 @@ sealed class BrowseZipIntent {
 
 @HiltViewModel
 class BrowseZipVM @Inject constructor(
-    private val directoryDao: DirectoryDao
+    private val zipCacheManager: ZipCacheManager
 ) : ViewModel() {
 
     var state by mutableStateOf(BrowseZipState())
         private set
 
     private var zipSource: ZipSource? = null
-    private var share: DiskShare? = null
 
     fun onIntent(intent: BrowseZipIntent) {
         when (intent) {
@@ -58,28 +47,9 @@ class BrowseZipVM @Inject constructor(
         zipSource = source
         viewModelScope.launchIO {
             state = state.copy(isLoading = true)
-            val allFilePathList = mutableListOf<String>()
             try {
-                when (source) {
-                    is ZipSource.Local -> {
-                        ZipFile(source.path, Charset.forName("GBK")).use { zip ->
-                            val entries = zip.entries()
-                            while (entries.hasMoreElements()) {
-                                allFilePathList.add(entries.nextElement().name)
-                            }
-                        }
-                    }
-                    is ZipSource.Smb -> {
-                        getSmbInputStream(source).use { isStream ->
-                            ZipInputStream(isStream, Charset.forName("GBK")).use { zis ->
-                                var entry: ZipEntry?
-                                while (zis.nextEntry.also { entry = it } != null) {
-                                    allFilePathList.add(entry!!.name)
-                                }
-                            }
-                        }
-                    }
-                }
+                val entries = zipCacheManager.getZipEntries(source)
+                val allFilePathList = entries.map { it.path }
 
                 val fileNameOnly = fileName.substringAfterLast('/')
                 val directoryPath = fileName.removeSuffix(fileNameOnly)
@@ -109,25 +79,11 @@ class BrowseZipVM @Inject constructor(
         }
     }
 
-    private suspend fun getSmbInputStream(source: ZipSource.Smb): InputStream = withContext(Dispatchers.IO) {
-        if (share == null) {
-            val directory = directoryDao.getDirectory(source.serverName)
-            val client = SMBClient()
-            val connection = client.connect(directory.path, directory.port)
-            val session = connection.authenticate(AuthenticationContext(directory.user, directory.password.toCharArray(), null))
-            share = session.connectShare(directory.shareName) as DiskShare
-        }
-        share!!.openFile(source.zipPath, setOf(AccessMask.GENERIC_READ), null, setOf(SMB2ShareAccess.FILE_SHARE_READ), SMB2CreateDisposition.FILE_OPEN, null).inputStream
-    }
-
     override fun onCleared() {
-        val shareToClose = share
-        if (shareToClose != null) {
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    shareToClose.close()
-                } catch (e: Exception) {
-                    e.printStackTrace()
+        zipSource?.let {
+            if (it is ZipSource.Smb) {
+                viewModelScope.launch {
+                    zipCacheManager.releaseShare(it)
                 }
             }
         }

@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -34,8 +35,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.sq26.imageview.R
-import com.sq26.imageview.coil.ZipEntryModel
-import com.sq26.imageview.ui.nav.ZipSource
+import com.sq26.imageview.data.ZipEntryModel
+import com.sq26.imageview.data.ZipSource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -144,7 +145,8 @@ private fun ZipFileList(
     source: ZipSource,
     directoryPath: String
 ) {
-    LazyColumn {
+    val state = rememberLazyListState()
+    LazyColumn(state = state) {
         items(fileList) { file ->
             Row(
                 Modifier
@@ -155,7 +157,11 @@ private fun ZipFileList(
                 if (file.isDirectory) {
                     Icon(painterResource(R.drawable.folder_24px), null, Modifier.padding(16.dp).size(36.dp), MaterialTheme.colorScheme.primary)
                 } else {
-                    ZipAsyncImage(ZipEntryModel(source, directoryPath + file.name), Modifier.size(78.dp))
+                    ZipAsyncImage(
+                        model = ZipEntryModel(source, directoryPath + file.name),
+                        modifier = Modifier.size(78.dp),
+                        isScrolling = state.isScrollInProgress
+                    )
                 }
                 Text(file.name, Modifier.padding(vertical = 8.dp).padding(end = 16.dp))
             }
@@ -165,11 +171,33 @@ private fun ZipFileList(
 }
 
 @Composable
-fun ZipAsyncImage(model: ZipEntryModel, modifier: Modifier = Modifier) {
+fun ZipAsyncImage(
+    model: ZipEntryModel,
+    modifier: Modifier = Modifier,
+    isScrolling: Boolean = false
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // 监听滑动状态，决定加载策略
+    val request = androidx.compose.runtime.remember(model, isScrolling) {
+        coil3.request.ImageRequest.Builder(context)
+            .data(model)
+            .apply {
+                if (isScrolling) {
+                    // 滑动过程中：只从缓存读取，不触发耗时的网络/磁盘写入 IO。
+                    // 这样可以确保列表滑动极度丝滑，不会因为抢占 IO 带宽而产生掉帧或卡顿。
+                    diskCachePolicy(coil3.request.CachePolicy.READ_ONLY)
+                    memoryCachePolicy(coil3.request.CachePolicy.ENABLED)
+                }
+            }
+            .build()
+    }
+
     AsyncImage(
-        model = model,
+        model = request,
         contentDescription = null,
         modifier = modifier,
-        contentScale = ContentScale.Crop
+        contentScale = ContentScale.Crop,
+        // 使用针对压缩包的专用占位图
+        placeholder = painterResource(R.drawable.folder_zip_24px)
     )
 }

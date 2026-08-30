@@ -38,9 +38,9 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil3.request.ImageRequest
 import coil3.size.Size
 import com.sq26.imageview.R
-import com.sq26.imageview.coil.ZipEntryModel
+import com.sq26.imageview.data.ZipEntryModel
+import com.sq26.imageview.data.ZipSource
 import com.sq26.imageview.ui.components.ZoomableImage
-import com.sq26.imageview.ui.nav.ZipSource
 
 @Composable
 fun BrowseZipScreen(source: ZipSource, fileName: String, onBack: () -> Unit) {

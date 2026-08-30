@@ -7,14 +7,8 @@ import coil3.fetch.FetchResult
 import coil3.fetch.Fetcher
 import coil3.fetch.SourceFetchResult
 import coil3.request.Options
-import com.hierynomus.msdtyp.AccessMask
-import com.hierynomus.mssmb2.SMB2CreateDisposition
-import com.hierynomus.mssmb2.SMB2ShareAccess
-import com.hierynomus.smbj.SMBClient
-import com.hierynomus.smbj.auth.AuthenticationContext
-import com.hierynomus.smbj.share.DiskShare
-import com.sq26.imageview.data.DirectoryDao
-import com.sq26.imageview.ui.nav.ZipSource
+import com.sq26.imageview.data.ZipEntryModel
+import com.sq26.imageview.data.ZipSource
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -26,25 +20,23 @@ import okio.buffer
 import okio.source
 import java.io.InputStream
 import java.nio.charset.Charset
-import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
-import java.util.zip.ZipInputStream
 
-data class ZipEntryModel(
-    val source: ZipSource,
-    val entryPath: String
-)
-
+/**
+ * Coil 资源抓取器。
+ * 负责将 [ZipEntryModel]（表示 ZIP 内的一个图片）转换为 Coil 可以使用的 [FetchResult]。
+ * 它是图片加载管道的第一环，决定了数据如何从源头（本地文件或远程 SMB）读取。
+ */
 class ZipEntryFetcher(
     private val model: ZipEntryModel,
     private val options: Options,
-    private val directoryDao: DirectoryDao
+    private val zipCacheManager: ZipCacheManager
 ) : Fetcher {
 
     @EntryPoint
     @InstallIn(SingletonComponent::class)
     interface ZipEntryFetcherEntryPoint {
-        fun directoryDao(): DirectoryDao
+        fun zipCacheManager(): ZipCacheManager
     }
 
     override suspend fun fetch(): FetchResult? = withContext(Dispatchers.IO) {
@@ -53,7 +45,7 @@ class ZipEntryFetcher(
                 val zipFile = ZipFile(source.path, Charset.forName("GBK"))
                 val entry = zipFile.getEntry(model.entryPath)
                 if (entry != null) {
-                    // 对于本地文件，我们包装一下 InputStream 以便在关闭时同时关闭 ZipFile
+                    // 对于本地文件，我们包装一下 InputStream 以便在关闭时同时关闭 ZipFile，防止资源泄露
                     object : InputStream() {
                         private val wrapped = zipFile.getInputStream(entry)
                         override fun read() = wrapped.read()
@@ -70,20 +62,8 @@ class ZipEntryFetcher(
                 }
             }
             is ZipSource.Smb -> {
-                val smbStream = getSmbInputStream(source)
-                val zis = ZipInputStream(smbStream, Charset.forName("GBK"))
-                var entry: ZipEntry?
-                var found = false
-                while (zis.nextEntry.also { entry = it } != null) {
-                    if (entry!!.name == model.entryPath) {
-                        found = true
-                        break
-                    }
-                }
-                if (found) zis else {
-                    zis.close()
-                    null
-                }
+                // 对于 SMB 文件，直接从 ZipCacheManager 获取针对该 Entry 的随机访问流
+                zipCacheManager.getSmbInputStream(source, model.entryPath)
             }
         }
 
@@ -99,39 +79,21 @@ class ZipEntryFetcher(
         } else null
     }
 
-    private suspend fun getSmbInputStream(source: ZipSource.Smb): InputStream {
-        val directory = directoryDao.getDirectory(source.serverName)
-        val client = SMBClient()
-        val connection = client.connect(directory.path, directory.port)
-        val session = connection.authenticate(
-            AuthenticationContext(
-                directory.user,
-                directory.password.toCharArray(),
-                null
-            )
-        )
-        val share = session.connectShare(directory.shareName) as DiskShare
-        return share.openFile(
-            source.zipPath,
-            setOf(AccessMask.GENERIC_READ),
-            null,
-            setOf(SMB2ShareAccess.FILE_SHARE_READ),
-            SMB2CreateDisposition.FILE_OPEN,
-            null
-        ).inputStream
-    }
-
+    /**
+     * 工厂类，用于在 Coil 配置中注册该抓取器。
+     */
     class Factory : Fetcher.Factory<ZipEntryModel> {
         override fun create(
             data: ZipEntryModel,
             options: Options,
             imageLoader: ImageLoader
         ): Fetcher {
+            // 通过 Hilt 获取单例 ZipCacheManager
             val entryPoint = EntryPointAccessors.fromApplication(
                 options.context,
                 ZipEntryFetcherEntryPoint::class.java
             )
-            return ZipEntryFetcher(data, options, entryPoint.directoryDao())
+            return ZipEntryFetcher(data, options, entryPoint.zipCacheManager())
         }
     }
 }
