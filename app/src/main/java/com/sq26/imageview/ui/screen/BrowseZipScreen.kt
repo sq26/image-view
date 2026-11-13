@@ -41,6 +41,7 @@ import com.sq26.imageview.R
 import com.sq26.imageview.data.ZipEntryModel
 import com.sq26.imageview.data.ZipSource
 import com.sq26.imageview.ui.components.ZoomableImage
+import com.sq26.imageview.utils.SmbFileData
 
 @Composable
 fun BrowseZipScreen(source: ZipSource, fileName: String, onBack: () -> Unit) {
@@ -143,7 +144,7 @@ fun BrowseZipScreen(source: ZipSource, fileName: String, onBack: () -> Unit) {
 @Composable
 private fun ZipImageItem(
     source: ZipSource,
-    file: FileData,
+    file: SmbFileData,
     onClick: () -> Unit
 ) {
     ZoomableImage(

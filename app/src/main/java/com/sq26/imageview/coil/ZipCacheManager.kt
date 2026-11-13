@@ -88,6 +88,7 @@ class ZipCacheManager @Inject constructor(
                     ZipFile(source.path, Charset.forName("GBK")).use { zip ->
                         zip.entries().asSequence().map { entry ->
                             ZipEntryInfo(
+                                name = entry.name,
                                 path = entry.name,
                                 offset = -1,
                                 compressedSize = entry.compressedSize,

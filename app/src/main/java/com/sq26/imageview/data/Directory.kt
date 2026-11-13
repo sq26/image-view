@@ -1,5 +1,6 @@
 package com.sq26.imageview.data
 
+import androidx.compose.runtime.Immutable
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -10,15 +11,24 @@ import androidx.room.Query
 import androidx.room.RoomDatabase
 import kotlinx.coroutines.flow.Flow
 
+@Immutable
 @Entity(tableName = "directory")
 data class Directory(
+    //名称
     @PrimaryKey val name: String = "",
+    //类型
     val type: Int = TYPE_SMB,
-    val path: String,
+    //根链接地址,TYPE_SMB:存ip
+    val path: String = "",
+    //端口
     val port: Int = 445,
+    //分享目录名称,smb共享目录的顶层文件夹名称,为空展示根目录
     val shareName: String = "share",
+    //分享目录路径,是基于shareName的下一级路径
     val sharePath: String = "",
+    //用户名
     val user: String = "",
+    //密码
     val password: String = ""
 ) {
     companion object {

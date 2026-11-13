@@ -26,35 +26,28 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.sq26.imageview.R
-import com.sq26.imageview.data.ZipEntryModel
-import com.sq26.imageview.data.ZipSource
+import com.sq26.imageview.data.SmbZipEntryModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ZipFileListScreen(
-    source: ZipSource,
+fun SmbZipFileListScreen(
+    vm: SmbZipFileListVM,
     onBack: () -> Unit,
     toBrowseZip: (fileName: String) -> Unit
 ) {
-    val vm = hiltViewModel<ZipFileListVM>()
-    val state = vm.state
+    val uiState = vm.uiState
 
-    LaunchedEffect(source) {
-        vm.onIntent(ZipFileListIntent.Init(source))
-    }
 
     BackHandler {
-        if (state.directoryList.isNotEmpty()) {
-            vm.onIntent(ZipFileListIntent.ToggleDirectory("", false))
+        if (uiState.directoryList.isNotEmpty()) {
+            vm.onIntent(ZipFileListEvent.ToggleDirectory("", false))
         } else {
             onBack()
         }
@@ -67,8 +60,8 @@ fun ZipFileListScreen(
                 title = { Text("压缩包内容") },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (state.directoryList.isNotEmpty()) {
-                            vm.onIntent(ZipFileListIntent.ToggleDirectory("", false))
+                        if (uiState.directoryList.isNotEmpty()) {
+                            vm.onIntent(ZipFileListEvent.ToggleDirectory("", false))
                         } else {
                             onBack()
                         }
@@ -82,24 +75,22 @@ fun ZipFileListScreen(
         Box(modifier = Modifier.padding(innerPadding)) {
             Column {
                 Breadcrumbs(
-                    directoryList = state.directoryList,
-                    onCrumbClick = { index -> vm.onIntent(ZipFileListIntent.BackToDirectory(index)) },
-                    onRootClick = { vm.onIntent(ZipFileListIntent.BackToDirectory(-1)) }
+                    directoryList = uiState.directoryList,
+                    onCrumbClick = { index -> vm.onIntent(ZipFileListEvent.BackToDirectory(index)) },
+                    onRootClick = { vm.onIntent(ZipFileListEvent.BackToDirectory(-1)) }
                 )
                 ZipFileList(
-                    fileList = state.fileList,
+                    fileList = uiState.fileList,
                     onItemClick = { file ->
-                        if (file.isDirectory) {
-                            vm.onIntent(ZipFileListIntent.ToggleDirectory(file.name, true))
+                        if (file.entry.isDirectory) {
+                            vm.onIntent(ZipFileListEvent.ToggleDirectory(file.entry.name, true))
                         } else {
-                            toBrowseZip(file.name)
+                            toBrowseZip(file.entry.name)
                         }
-                    },
-                    source = source,
-                    directoryPath = state.directoryList.joinToString("")
+                    }
                 )
             }
-            if (state.isLoading) {
+            if (uiState.isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
         }
@@ -122,7 +113,12 @@ private fun Breadcrumbs(
                 modifier = Modifier.clickable { onRootClick() },
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(painterResource(R.drawable.baseline_play_arrow_24), null, Modifier.size(16.dp), MaterialTheme.colorScheme.primary)
+                Icon(
+                    painterResource(R.drawable.baseline_play_arrow_24),
+                    null,
+                    Modifier.size(16.dp),
+                    MaterialTheme.colorScheme.primary
+                )
                 Text("根目录")
             }
         }
@@ -131,7 +127,12 @@ private fun Breadcrumbs(
                 modifier = Modifier.clickable { onCrumbClick(index) },
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(painterResource(R.drawable.baseline_play_arrow_24), null, Modifier.size(16.dp), MaterialTheme.colorScheme.primary)
+                Icon(
+                    painterResource(R.drawable.baseline_play_arrow_24),
+                    null,
+                    Modifier.size(16.dp),
+                    MaterialTheme.colorScheme.primary
+                )
                 Text(crumb.trim('/'))
             }
         }
@@ -140,10 +141,8 @@ private fun Breadcrumbs(
 
 @Composable
 private fun ZipFileList(
-    fileList: List<FileData>,
-    onItemClick: (FileData) -> Unit,
-    source: ZipSource,
-    directoryPath: String
+    fileList: List<SmbZipEntryModel>,
+    onItemClick: (SmbZipEntryModel) -> Unit
 ) {
     val state = rememberLazyListState()
     LazyColumn(state = state) {
@@ -154,16 +153,25 @@ private fun ZipFileList(
                     .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (file.isDirectory) {
-                    Icon(painterResource(R.drawable.folder_24px), null, Modifier.padding(16.dp).size(36.dp), MaterialTheme.colorScheme.primary)
+                if (file.entry.isDirectory) {
+                    Icon(
+                        painterResource(R.drawable.folder_24px),
+                        null,
+                        Modifier
+                            .padding(16.dp)
+                            .size(36.dp),
+                        MaterialTheme.colorScheme.primary
+                    )
                 } else {
                     ZipAsyncImage(
-                        model = ZipEntryModel(source, directoryPath + file.name),
+                        model = file,
                         modifier = Modifier.size(78.dp),
                         isScrolling = state.isScrollInProgress
                     )
                 }
-                Text(file.name, Modifier.padding(vertical = 8.dp).padding(end = 16.dp))
+                Text(file.entry.name, Modifier
+                    .padding(vertical = 8.dp)
+                    .padding(end = 16.dp))
             }
             HorizontalDivider()
         }
@@ -172,7 +180,7 @@ private fun ZipFileList(
 
 @Composable
 fun ZipAsyncImage(
-    model: ZipEntryModel,
+    model: SmbZipEntryModel,
     modifier: Modifier = Modifier,
     isScrolling: Boolean = false
 ) {
@@ -198,6 +206,6 @@ fun ZipAsyncImage(
         modifier = modifier,
         contentScale = ContentScale.Crop,
         // 使用针对压缩包的专用占位图
-        placeholder = painterResource(R.drawable.folder_zip_24px)
+        placeholder = painterResource(R.drawable.smb_share_24px)
     )
 }

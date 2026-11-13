@@ -10,6 +10,10 @@ import coil3.gif.AnimatedImageDecoder
 import coil3.memory.MemoryCache
 import coil3.request.allowRgb565
 import coil3.request.crossfade
+import com.sq26.imageview.coil.SmbFileDataFetcher
+import com.sq26.imageview.coil.SmbFileDataKeyer
+import com.sq26.imageview.coil.SmbZipFileDataFetcher
+import com.sq26.imageview.coil.SmbZipFileDataKeyer
 import com.sq26.imageview.coil.ZipEntryFetcher
 import com.sq26.imageview.coil.ZipEntryKeyer
 import dagger.hilt.android.HiltAndroidApp
@@ -33,6 +37,10 @@ class ImageViewApplication : Application(), SingletonImageLoader.Factory{
             }
             .components {
                 add(AnimatedImageDecoder.Factory())
+                add(SmbFileDataKeyer())
+                add(SmbFileDataFetcher.Factory())
+                add(SmbZipFileDataKeyer())
+                add(SmbZipFileDataFetcher.Factory())
                 add(ZipEntryKeyer())
                 add(ZipEntryFetcher.Factory())
             }

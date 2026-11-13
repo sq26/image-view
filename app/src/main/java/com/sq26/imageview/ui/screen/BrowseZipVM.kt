@@ -7,17 +7,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sq26.imageview.coil.ZipCacheManager
 import com.sq26.imageview.data.ZipSource
+import com.sq26.imageview.utils.SmbFileData
 import com.sq26.imageview.utils.launchIO
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
-import java.nio.charset.Charset
-import java.util.zip.ZipEntry
-import java.util.zip.ZipFile
-import java.util.zip.ZipInputStream
 import javax.inject.Inject
 
 data class BrowseZipState(
-    val fileList: List<FileData> = emptyList(),
+    val fileList: List<SmbFileData> = emptyList(),
     val initIndex: Int = 0,
     val isLoading: Boolean = false
 )
@@ -53,7 +50,7 @@ class BrowseZipVM @Inject constructor(
 
                 val fileNameOnly = fileName.substringAfterLast('/')
                 val directoryPath = fileName.removeSuffix(fileNameOnly)
-                val list = mutableListOf<FileData>()
+                val list = mutableListOf<SmbFileData>()
 
                 allFilePathList.forEach { fullPath ->
                     if (directoryPath == fullPath) return@forEach
@@ -63,7 +60,7 @@ class BrowseZipVM @Inject constructor(
                     val relative = fullPath.removePrefix(directoryPath)
                     if (relative.count { it == '/' } != 0) return@forEach
                     val name = relative.substringAfterLast('/')
-                    list.add(FileData(name = name, ext = name.substringAfterLast('.', "").lowercase(), path = fullPath))
+                    list.add(SmbFileData(name = name, ext = name.substringAfterLast('.', "").lowercase(), path = fullPath))
                 }
 
                 list.sortWith(compareBy { it.name })

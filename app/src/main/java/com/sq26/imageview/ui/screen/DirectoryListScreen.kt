@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,47 +35,40 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sq26.imageview.R
 import com.sq26.imageview.data.Directory
 import com.sq26.imageview.ui.theme.ImageViewTheme
 import com.sq26.imageview.utils.showToast
 import kotlinx.coroutines.launch
 
-@Preview(showBackground = true)
-@Composable
-fun DirectoryListScreenPreview() {
-    ImageViewTheme {
-        DirectoryListScreenContent(
-            toFileList = {},addSMBDirectory = {}, list = listOf()
-        )
-    }
-}
 
 @Composable
 fun DirectoryListScreen(
-    toFileList: (name: String) -> Unit
+    toSmbFileList: (name: String) -> Unit
 ) {
     val vm = hiltViewModel<DirectoryListVM>()
-    val list by vm.list.collectAsStateWithLifecycle(listOf())
+    val uiState = vm.uiState
+    val onEvent: (DirectoryListEvent) -> Unit = { event ->
+        when (event) {
+            is DirectoryListEvent.ToFileList -> {
+                toSmbFileList(event.name)
+            }
+
+            else -> vm.onEvent(event)
+        }
+    }
     DirectoryListScreenContent(
-        toFileList = toFileList,
-        addSMBDirectory = {
-            vm.addSMBDirectory(it)
-        },
-        list = list
+        uiState,
+        onEvent = onEvent,
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DirectoryListScreenContent(
-    toFileList: (name: String) -> Unit,
-    addSMBDirectory: (Directory) -> Unit,
-    list: List<Directory>
+    uiState: DirectoryListUiState,
+    onEvent: (DirectoryListEvent) -> Unit,
 ) {
-    var showEditSMBServerDialog by remember { mutableStateOf(false) }
-    var selectItem by remember { mutableStateOf<Directory?>(null) }
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
@@ -82,8 +76,7 @@ fun DirectoryListScreenContent(
         },
         floatingActionButton = {
             FloatingActionButton(onClick = {
-                selectItem = null
-                showEditSMBServerDialog = true
+                onEvent(DirectoryListEvent.ShowEditSMBServerDialog(null))
             }) {
                 Icon(
                     painter = painterResource(id = R.drawable.baseline_add_24),
@@ -96,11 +89,11 @@ fun DirectoryListScreenContent(
             modifier = Modifier
                 .padding(innerPadding)
         ) {
-            items(list) {
+            items(uiState.list) {
                 Row(
                     modifier = Modifier
                         .clickable {
-                            toFileList(it.name)
+                            onEvent(DirectoryListEvent.ToFileList(it.name))
                         }
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -122,8 +115,7 @@ fun DirectoryListScreenContent(
                         contentDescription = null,
                         modifier = Modifier
                             .clickable {
-                                selectItem = it
-                                showEditSMBServerDialog = true
+                                onEvent(DirectoryListEvent.ShowEditSMBServerDialog(it))
                             }
                             .size(36.dp)
                     )
@@ -134,36 +126,28 @@ fun DirectoryListScreenContent(
         }
     }
 
-    if (showEditSMBServerDialog)
-        EditSMBServerDialog(selectItem, addSMBDirectory = addSMBDirectory) {
-            showEditSMBServerDialog = false
-        }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun EditSMBServerDialogPreview() {
-    ImageViewTheme {
-        EditSMBServerDialog(null, addSMBDirectory = {}, onDismissRequest = {})
-    }
+    if (uiState.showEditSMBServerDialog)
+        EditSMBServerDialog(uiState, onEvent = onEvent)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditSMBServerDialog(
-    directory: Directory?,
-    addSMBDirectory: (Directory) -> Unit,
-    onDismissRequest: () -> Unit
+    uiState: DirectoryListUiState,
+    onEvent: (DirectoryListEvent) -> Unit,
 ) {
+    val onDismissRequest by rememberUpdatedState {
+        onEvent(DirectoryListEvent.CloseEditSMBServerDialog)
+    }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    var name by remember { mutableStateOf(directory?.name.orEmpty()) }
-    var ip by remember { mutableStateOf(directory?.path.orEmpty()) }
-    var port by remember { mutableStateOf(directory?.port?.toString() ?: "445") }
-    var user by remember { mutableStateOf(directory?.user.orEmpty()) }
-    var password by remember { mutableStateOf(directory?.password.orEmpty()) }
-    var shareName by remember { mutableStateOf(directory?.shareName.orEmpty().ifEmpty { "share" }) }
-    var sharePath by remember { mutableStateOf(directory?.sharePath.orEmpty()) }
+    var name by remember { mutableStateOf(uiState.selectItem.name) }
+    var ip by remember { mutableStateOf(uiState.selectItem.path) }
+    var port by remember { mutableStateOf(uiState.selectItem.port.toString().ifEmpty { "445" }) }
+    var user by remember { mutableStateOf(uiState.selectItem.user) }
+    var password by remember { mutableStateOf(uiState.selectItem.password) }
+    var shareName by remember { mutableStateOf(uiState.selectItem.shareName.ifEmpty { "share" }) }
+    var sharePath by remember { mutableStateOf(uiState.selectItem.sharePath) }
     val bottomSheetState =
         rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(onDismissRequest = onDismissRequest, sheetState = bottomSheetState) {
@@ -224,17 +208,21 @@ fun EditSMBServerDialog(
                     context.showToast("分享目录名称不能为空")
                     return@Button
                 }
-                scope.launch {
-                    addSMBDirectory(Directory(
-                        name = name,
-                        path = ip,
-                        port = port.toIntOrNull() ?: 445,
-                        shareName = shareName,
-                        sharePath = sharePath,
-                        user = user,
-                        password = password
 
-                    ))
+                scope.launch {
+                    onEvent(
+                        DirectoryListEvent.AddSMBDirectory(
+                            Directory(
+                                name = name,
+                                path = ip,
+                                port = port.toIntOrNull() ?: 445,
+                                shareName = shareName,
+                                sharePath = sharePath,
+                                user = user,
+                                password = password
+                            )
+                        )
+                    )
                     bottomSheetState.hide()
                 }.invokeOnCompletion {
                     onDismissRequest()
@@ -244,6 +232,27 @@ fun EditSMBServerDialog(
             }
         }
 
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun EditSMBServerDialogPreview() {
+    ImageViewTheme {
+        EditSMBServerDialog(
+            uiState = DirectoryListUiState(),
+            onEvent = {})
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun DirectoryListScreenPreview() {
+    ImageViewTheme {
+        DirectoryListScreenContent(
+            uiState = DirectoryListUiState(),
+            onEvent = {}
+        )
     }
 }
 

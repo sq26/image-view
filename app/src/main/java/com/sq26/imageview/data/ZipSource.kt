@@ -1,5 +1,6 @@
 package com.sq26.imageview.data
 
+import com.sq26.imageview.utils.SmbFileData
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -16,7 +17,13 @@ data class ZipEntryModel(
     val entryPath: String
 )
 
+data class SmbZipEntryModel(
+    val source: SmbFileData,
+    val entry: ZipEntryInfo
+)
+
 data class ZipEntryInfo(
+    val name: String,
     val path: String,
     val offset: Long,
     val compressedSize: Long,

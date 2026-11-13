@@ -88,6 +88,7 @@ object ZipRandomAccessHelper {
 
             entries.add(
                 ZipEntryInfo(
+                    name = if (isDirectory) name else name.substringAfterLast('/'),
                     path = name,
                     offset = localHeaderOffset,
                     compressedSize = compressedSize,
