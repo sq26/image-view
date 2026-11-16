@@ -52,7 +52,6 @@ class SmbZipFileListVM @AssistedInject constructor(
 
     private fun initData() {
         viewModelScope.launchIO {
-            Log.i("navKey", "initData: $navKey")
             val initSuccess = SmbZipUtil.initSmbZip(navKey.data.filePath())
             if (!initSuccess) {
                 withContext(Dispatchers.Main) {
@@ -61,6 +60,33 @@ class SmbZipFileListVM @AssistedInject constructor(
                 return@launchIO
             }
             val fileList = SmbZipUtil.queryZipEntryInfoList()
+                .map { SmbZipEntryModel(source = navKey.data, entry = it) }
+            launchMain {
+                uiState = uiState.copy(fileList = fileList)
+            }
+        }
+    }
+
+    fun onEvent(event: ZipFileListEvent){
+        when(event){
+            is ZipFileListEvent.ToggleDirectory -> {
+                val newDirList = uiState.directoryList.toMutableList()
+                if (event.isEnter) newDirList.add(event.name) else newDirList.removeLastOrNull()
+                uiState = uiState.copy(directoryList = newDirList)
+                updateList2()
+            }
+            is ZipFileListEvent.BackToDirectory -> {
+                val newDirList = uiState.directoryList.take(event.index + 1)
+                uiState = uiState.copy(directoryList = newDirList)
+                updateList2()
+            }
+            else -> {}
+        }
+    }
+
+    private fun updateList2(){
+        viewModelScope.launchIO {
+            val fileList = SmbZipUtil.queryZipEntryInfoList(uiState.directoryList.joinToString("/"))
                 .map { SmbZipEntryModel(source = navKey.data, entry = it) }
             launchMain {
                 uiState = uiState.copy(fileList = fileList)

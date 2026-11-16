@@ -40,14 +40,14 @@ import com.sq26.imageview.data.SmbZipEntryModel
 fun SmbZipFileListScreen(
     vm: SmbZipFileListVM,
     onBack: () -> Unit,
-    toBrowseZip: (fileName: String) -> Unit
+    toBrowseZip: (filePath: String) -> Unit
 ) {
     val uiState = vm.uiState
 
 
     BackHandler {
         if (uiState.directoryList.isNotEmpty()) {
-            vm.onIntent(ZipFileListEvent.ToggleDirectory("", false))
+            vm.onEvent(ZipFileListEvent.ToggleDirectory("", false))
         } else {
             onBack()
         }
@@ -61,7 +61,7 @@ fun SmbZipFileListScreen(
                 navigationIcon = {
                     IconButton(onClick = {
                         if (uiState.directoryList.isNotEmpty()) {
-                            vm.onIntent(ZipFileListEvent.ToggleDirectory("", false))
+                            vm.onEvent(ZipFileListEvent.ToggleDirectory("", false))
                         } else {
                             onBack()
                         }
@@ -76,16 +76,16 @@ fun SmbZipFileListScreen(
             Column {
                 Breadcrumbs(
                     directoryList = uiState.directoryList,
-                    onCrumbClick = { index -> vm.onIntent(ZipFileListEvent.BackToDirectory(index)) },
-                    onRootClick = { vm.onIntent(ZipFileListEvent.BackToDirectory(-1)) }
+                    onCrumbClick = { index -> vm.onEvent(ZipFileListEvent.BackToDirectory(index)) },
+                    onRootClick = { vm.onEvent(ZipFileListEvent.BackToDirectory(-1)) }
                 )
                 ZipFileList(
                     fileList = uiState.fileList,
                     onItemClick = { file ->
                         if (file.entry.isDirectory) {
-                            vm.onIntent(ZipFileListEvent.ToggleDirectory(file.entry.name, true))
+                            vm.onEvent(ZipFileListEvent.ToggleDirectory(file.entry.name, true))
                         } else {
-                            toBrowseZip(file.entry.name)
+                            toBrowseZip(file.entry.path)
                         }
                     }
                 )

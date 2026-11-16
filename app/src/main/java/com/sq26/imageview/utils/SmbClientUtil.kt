@@ -11,8 +11,6 @@ import com.hierynomus.smbj.share.File
 import com.sq26.imageview.AppConfig
 import com.sq26.imageview.data.Directory
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.Serializer
-
 import java.io.IOException
 import java.io.InputStream
 
@@ -88,9 +86,7 @@ object SmbClientUtil {
             path,
             setOf(AccessMask.GENERIC_READ),
             null,
-            setOf(
-                SMB2ShareAccess.FILE_SHARE_READ
-            ),
+            SMB2ShareAccess.ALL,
             SMB2CreateDisposition.FILE_OPEN,
             null
         )

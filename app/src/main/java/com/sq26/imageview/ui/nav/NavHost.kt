@@ -8,13 +8,13 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
-import com.sq26.imageview.data.ZipSource
-import com.sq26.imageview.ui.screen.BrowseZipScreen
+import com.sq26.imageview.ui.screen.SmbZipBrowseScreen
 import com.sq26.imageview.ui.screen.DirectoryListScreen
 import com.sq26.imageview.ui.screen.SmbBrowseScreen
 import com.sq26.imageview.ui.screen.SmbBrowseVM
 import com.sq26.imageview.ui.screen.SmbFileListScreen
 import com.sq26.imageview.ui.screen.SmbFileListVM
+import com.sq26.imageview.ui.screen.SmbZipBrowseVM
 import com.sq26.imageview.ui.screen.SmbZipFileListScreen
 import com.sq26.imageview.ui.screen.SmbZipFileListVM
 import com.sq26.imageview.utils.SmbFileData
@@ -38,7 +38,7 @@ data class SmbBrowse(val path: String, val fileName: String) : NavKey
 data class SmbZipFileList(val data: SmbFileData) : NavKey
 
 @Serializable
-data class BrowseZip(val source: ZipSource, val fileName: String) : NavKey
+data class SmbZipBrowse(val data: SmbFileData, val filePath: String) : NavKey
 
 @Composable
 fun MainNavHost() {
@@ -85,23 +85,24 @@ fun MainNavHost() {
 
         // ZipFileList -> Zip 内部文件列表屏幕
         entry<SmbZipFileList> { key ->
-            val vm = hiltNavViewModel<SmbZipFileList, SmbZipFileListVM, SmbZipFileListVM.Factory>(key)
+            val vm =
+                hiltNavViewModel<SmbZipFileList, SmbZipFileListVM, SmbZipFileListVM.Factory>(key)
             SmbZipFileListScreen(
                 vm = vm,
                 onBack = {
                     navigator.goBack()
                 },
-                toBrowseZip = { fileName ->
-//                    navigator.navigate(BrowseZip(key.source, fileName))
+                toBrowseZip = { filePath ->
+                    navigator.navigate(SmbZipBrowse(key.data, filePath))
                 }
             )
         }
 
         // BrowseZip -> Zip 图片预览屏幕
-        entry<BrowseZip> { key ->
-            BrowseZipScreen(
-                source = key.source,
-                fileName = key.fileName,
+        entry<SmbZipBrowse> { key ->
+            val vm = hiltNavViewModel<SmbZipBrowse, SmbZipBrowseVM, SmbZipBrowseVM.Factory>(key)
+            SmbZipBrowseScreen(
+                vm = vm,
                 onBack = {
                     navigator.goBack()
                 })

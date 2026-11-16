@@ -38,15 +38,15 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil3.request.ImageRequest
 import coil3.size.Size
 import com.sq26.imageview.R
+import com.sq26.imageview.data.SmbZipEntryModel
 import com.sq26.imageview.data.ZipEntryModel
 import com.sq26.imageview.data.ZipSource
 import com.sq26.imageview.ui.components.ZoomableImage
 import com.sq26.imageview.utils.SmbFileData
 
 @Composable
-fun BrowseZipScreen(source: ZipSource, fileName: String, onBack: () -> Unit) {
-    val vm = hiltViewModel<BrowseZipVM>()
-    val state = vm.state
+fun SmbZipBrowseScreen(vm:SmbZipBrowseVM, onBack: () -> Unit) {
+    val state = vm.uiState
     var isUiVisible by remember { mutableStateOf(true) }
     val view = LocalView.current
     val activity = LocalActivity.current
@@ -67,9 +67,9 @@ fun BrowseZipScreen(source: ZipSource, fileName: String, onBack: () -> Unit) {
         }
     }
 
-    LaunchedEffect(source, fileName) {
-        vm.onIntent(BrowseZipIntent.Init(source, fileName))
-    }
+//    LaunchedEffect(source, fileName) {
+//        vm.onIntent(SmbZipBrowseEvent.Init(source, fileName))
+//    }
 
     val pagerState = rememberPagerState(initialPage = state.initIndex) { state.fileList.size }
 
@@ -90,8 +90,7 @@ fun BrowseZipScreen(source: ZipSource, fileName: String, onBack: () -> Unit) {
                 state = pagerState,
             ) { pageIndex ->
                 ZipImageItem(
-                    source = source,
-                    file = state.fileList[pageIndex],
+                    source = state.fileList[pageIndex],
                     onClick = { isUiVisible = !isUiVisible }
                 )
             }
@@ -120,10 +119,8 @@ fun BrowseZipScreen(source: ZipSource, fileName: String, onBack: () -> Unit) {
                     )
                 }
                 val currentFileName = if (state.fileList.isNotEmpty() && pagerState.currentPage < state.fileList.size) {
-                    state.fileList[pagerState.currentPage].name
-                } else {
-                    fileName.substringAfterLast('/')
-                }
+                    state.fileList[pagerState.currentPage].entry.name
+                } else ""
                 Text(
                     text = currentFileName,
                     color = Color.White,
@@ -143,13 +140,12 @@ fun BrowseZipScreen(source: ZipSource, fileName: String, onBack: () -> Unit) {
 
 @Composable
 private fun ZipImageItem(
-    source: ZipSource,
-    file: SmbFileData,
+    source: SmbZipEntryModel,
     onClick: () -> Unit
 ) {
     ZoomableImage(
         ImageRequest.Builder(LocalContext.current)
-            .data(ZipEntryModel(source, file.path))
+            .data(source)
             .size(Size.ORIGINAL)
             .build(),
         onClick = onClick

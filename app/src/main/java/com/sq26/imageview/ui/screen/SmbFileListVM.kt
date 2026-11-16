@@ -187,8 +187,9 @@ class SmbFileListVM @AssistedInject constructor(
 
     override fun onCleared() {
         Log.i("TAG", "onCleared: 注销vm")
-        SmbClientUtil.disconnect()
-
+        viewModelScope.launchIO {
+            SmbClientUtil.disconnect()
+        }
     }
 }
 

@@ -1,25 +1,18 @@
 package com.sq26.imageview.utils
 
 import android.util.Log
-import com.hierynomus.msdtyp.AccessMask
-import com.hierynomus.mssmb2.SMB2CreateDisposition
-import com.hierynomus.mssmb2.SMB2ShareAccess
 import com.hierynomus.smbj.share.File
 import com.sq26.imageview.data.ZipEntryInfo
-import com.sq26.imageview.data.ZipSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
+import java.io.BufferedInputStream
 import java.io.InputStream
-import java.nio.charset.Charset
 import java.util.concurrent.Executors
 import java.util.zip.Inflater
 import java.util.zip.InflaterInputStream
 import java.util.zip.ZipEntry
-import java.util.zip.ZipFile
 
 object SmbZipUtil {
 
@@ -56,12 +49,17 @@ object SmbZipUtil {
                     runBlocking(fileDispatcher) { file!!.fileInformation.standardInformation.endOfFile }
             }
             fileList = ZipRandomAccessHelper.listEntries(ras!!)
-
         }
         return true
     }
 
-    fun queryZipEntryInfoList() = fileList
+    fun queryZipEntryInfoList(path: String = ""): List<ZipEntryInfo> {
+       val startPath = if (path.isEmpty()) "" else "$path/"
+       return fileList.filter {
+            val fullPath = if (it.isDirectory) "$startPath${it.name}/" else "$startPath${it.name}"
+            fullPath == it.path
+        }
+    }
 
     suspend fun getEntryInputStream(entry: ZipEntryInfo): InputStream? {
         // 获取数据段的真实偏移量（跳过 Local Header）
@@ -101,13 +99,15 @@ object SmbZipUtil {
                     inflater?.end()
                 }
             }
+        //缓冲区大小256kb
+        val size = 256 * 1024
         // 如果是 Deflate 压缩，需要解压流
         return if (entry.compressionMethod == ZipEntry.DEFLATED) {
             val inflater = Inflater(true)
             val rawStream = createRawStream(inflater)
-            InflaterInputStream(rawStream, inflater)
+            InflaterInputStream(BufferedInputStream(rawStream, size), inflater)
         } else {
-            createRawStream()
+            BufferedInputStream(createRawStream(), size)
         }
 
     }

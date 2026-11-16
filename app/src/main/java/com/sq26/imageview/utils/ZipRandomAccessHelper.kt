@@ -47,7 +47,7 @@ object ZipRandomAccessHelper {
         val bufferSize = minOf(fileSize, 65536L + 22L).toInt()
         val buffer = ByteArray(bufferSize)
         val readCount = source.read(fileSize - bufferSize, buffer, 0, bufferSize)
-        
+
         var eocdPos = -1
         // 从后往前搜寻签名
         for (i in readCount - 22 downTo 0) {
@@ -83,13 +83,17 @@ object ZipRandomAccessHelper {
             val localHeaderOffset = readIntLe(cdBuffer, pos + 42).toLong() and 0xFFFFFFFFL
 
             // 文件名编码处理，中文 ZIP 通常使用 GBK
-            val name = String(cdBuffer, pos + 46, nameLen, charset("GBK"))
-            val isDirectory = name.endsWith("/")
-
+            val path = String(cdBuffer, pos + 46, nameLen, charset("GBK"))
+            val isDirectory = path.endsWith("/")
+            val name = if (isDirectory) {
+                path.split("/").let {
+                    it[it.size - 2]
+                }
+            } else path.substringAfterLast('/')
             entries.add(
                 ZipEntryInfo(
-                    name = if (isDirectory) name else name.substringAfterLast('/'),
-                    path = name,
+                    name = name,
+                    path = path,
                     offset = localHeaderOffset,
                     compressedSize = compressedSize,
                     uncompressedSize = uncompressedSize,
@@ -113,10 +117,10 @@ object ZipRandomAccessHelper {
         val header = ByteArray(30)
         source.read(localHeaderOffset, header, 0, 30)
         if (readIntLe(header, 0) != LOCAL_FILE_HEADER_SIG) return -1
-        
+
         val nameLen = readShortLe(header, 26).toInt() and 0xFFFF
         val extraLen = readShortLe(header, 28).toInt() and 0xFFFF
-        
+
         return localHeaderOffset + 30 + nameLen + extraLen
     }
 
